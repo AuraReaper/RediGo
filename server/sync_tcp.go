@@ -1,14 +1,15 @@
 package server
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"strconv"
 	"strings"
 
-	"github.com/dicedb/dice/config"
-	"github.com/dicedb/dice/core"
+	"github.com/AuraReaper/redigo/config"
+	"github.com/AuraReaper/redigo/core"
 )
 
 func toArrayString(ai []interface{}) ([]string, error) {
@@ -19,28 +20,30 @@ func toArrayString(ai []interface{}) ([]string, error) {
 	return as, nil
 }
 
-func readCommands(c io.ReadWriter) (core.RedisCmds, error) {
-	// TODO: Max read in one shot is 512 bytes
-	// To allow input > 512 bytes, then repeated read until
-	// we get EOF or designated delimiter
+func readCommands(c io.ReadWriter) (core.RedigoCmds, error) {
 	var buf []byte = make([]byte, 512)
 	n, err := c.Read(buf[:])
 	if err != nil {
 		return nil, err
 	}
 
-	values, err := core.Decode(buf[:n])
+	raw, err := core.Decode(buf[:n])
 	if err != nil {
 		return nil, err
 	}
 
-	var cmds []*core.RedisCmd = make([]*core.RedisCmd, 0)
+	values, ok := raw.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("expected array, got %T", raw)
+	}
+
+	var cmds []*core.RedigoCmd = make([]*core.RedigoCmd, 0)
 	for _, value := range values {
 		tokens, err := toArrayString(value.([]interface{}))
 		if err != nil {
 			return nil, err
 		}
-		cmds = append(cmds, &core.RedisCmd{
+		cmds = append(cmds, &core.RedigoCmd{
 			Cmd:  strings.ToUpper(tokens[0]),
 			Args: tokens[1:],
 		})
@@ -48,7 +51,7 @@ func readCommands(c io.ReadWriter) (core.RedisCmds, error) {
 	return cmds, nil
 }
 
-func respond(cmds core.RedisCmds, c io.ReadWriter) {
+func respond(cmds core.RedigoCmds, c io.ReadWriter) {
 	core.EvalAndRespond(cmds, c)
 }
 
