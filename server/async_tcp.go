@@ -4,12 +4,15 @@ import (
 	"log"
 	"net"
 	"syscall"
+	"time"
 
 	"github.com/AuraReaper/redigo/config"
 	"github.com/AuraReaper/redigo/core"
 )
 
 var conClients int = 0
+var cronFrequency time.Duration = 1 * time.Second
+var lastCronExecTime time.Time = time.Now()
 
 func RunAsyncTCPServer() error {
 	log.Println("starting an async TCP server on", config.Host, config.Port)
@@ -27,7 +30,7 @@ func RunAsyncTCPServer() error {
 	defer syscall.Close(serverFD)
 
 	// Set the Socket operate in a non-blocking mode
-	if err := syscall.SetNonblock(serverFD); err != nil {
+	if err := syscall.SetNonblock(serverFD, true); err != nil {
 		return err
 	}
 
@@ -63,6 +66,11 @@ func RunAsyncTCPServer() error {
 	}
 
 	for {
+		if time.Now().After(lastCronExecTime.Add(cronFrequency)) {
+			core.DeleteExpiredKeys()
+			lastCronExecTime = time.Now()
+		}
+
 		nevents, e := syscall.EpollWait(epollFD, events[:], -1)
 		if e != nil {
 			continue
