@@ -20,38 +20,36 @@ func RunSyncTCPServer() {
 	// listening on the configures host:port
 	lsnr, err := net.Listen("tcp", config.Host+":"+strconv.Itoa(config.Port))
 	if err != nil {
-		panic(err)
+		log.Println("err", err)
+		return
 	}
 
 	for {
 		// blocking call: waiting for the new client to connect
 		c, err := lsnr.Accept()
 		if err != nil {
-			panic(err)
+			log.Println("err", err)
 		}
 
 		// increment the no of concurrent clients
-		conClients += 1
-		log.Println("client connected with address:", c.RemoteAddr(), "concurrent clients", conClients)
+		conClients++
 
 		for {
 			// over the socket, continously read the command and print it out
 			cmd, err := readCommand(c)
 			if err != nil {
 				c.Close()
-				conClients -= 1
-				log.Println("client disconnected", c.RemoteAddr(), "concurrent clients", conClients)
+				conClients--
 				if err == io.EOF {
 					break
 				}
-				log.Println("err", err)
 			}
 			respond(cmd, c)
 		}
 	}
 }
 
-func readCommand(c net.Conn) (*core.RedigoCmd, error) {
+func readCommand(c io.ReadWriter) (*core.RedigoCmd, error) {
 	var buf []byte = make([]byte, 512)
 	n, err := c.Read(buf[:])
 	if err != nil {
@@ -76,6 +74,6 @@ func respond(cmd *core.RedigoCmd, c net.Conn) {
 	}
 }
 
-func respondError(err error, c net.Conn) {
+func respondError(err error, c io.ReadWriter) {
 	c.Write([]byte(fmt.Sprintf("-%s\r\n", err)))
 }
