@@ -67,7 +67,7 @@ func readCommand(c io.ReadWriter) (*core.RedigoCmd, error) {
 	}, nil
 }
 
-func respond(cmd *core.RedigoCmd, c net.Conn) {
+func respond(cmd *core.RedigoCmd, c io.ReadWriter) {
 	err := core.EvalAndRespond(cmd, c)
 	if err != nil {
 		respondError(err, c)
