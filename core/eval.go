@@ -78,7 +78,7 @@ func evalGET(args []string) []byte {
 		return RESP_NIL
 	}
 
-	if obj.ExpiresAt != -1 && obj.ExpiresAt <= time.Now().UnixMilli() {
+	if hasExpired(obj) {
 		return RESP_NIL
 	}
 
@@ -98,15 +98,16 @@ func evalTTL(args []string) []byte {
 		return RESP_MINUS_2
 	}
 
-	if obj.ExpiresAt == -1 {
+	exp, isExpirySet := getExpiry(obj)
+	if !isExpirySet {
 		return RESP_MINUS_1
 	}
 
-	durationMs := obj.ExpiresAt - time.Now().UnixMilli()
-
-	if durationMs < 0 {
+	if exp < uint64(time.Now().UnixMilli()) {
 		return RESP_MINUS_2
 	}
+
+	durationMs := exp - uint64(time.Now().UnixMilli())
 
 	return Encode(int64(durationMs/1000), false)
 }
@@ -140,7 +141,7 @@ func evalEXPIRE(args []string) []byte {
 		return RESP_ZERO
 	}
 
-	obj.ExpiresAt = time.Now().UnixMilli() + exDurationSec*1000
+	setExpiry(obj, exDurationSec*1000)
 
 	return RESP_ONE
 }
@@ -192,6 +193,11 @@ func evalLATENCY(args []string) []byte {
 	return Encode([]string{}, false)
 }
 
+func evalLRU(args []string) []byte {
+	evictAllKeysLRU()
+	return RESP_OK
+}
+
 func evalBGREWRITEAOF(args []string) []byte {
 	DumpAllAOF()
 	return RESP_OK
@@ -225,6 +231,8 @@ func EvalAndRespond(cmds RedigoCmds, c io.ReadWriter) {
 			buf.Write(evalCLIENT(cmd.Args))
 		case "LATENCY":
 			buf.Write(evalLATENCY(cmd.Args))
+		case "LRU":
+			buf.Write(evalLRU(cmd.Args))
 		default:
 			buf.Write(evalPING(cmd.Args))
 		}
