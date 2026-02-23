@@ -1,0 +1,12 @@
+{
+  "name": "redigo",
+  "image": "golang:1.25",
+  "workspaceFolder": "/workspace",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind",
+  "runArgs": ["-p", "7379:7379"],
+  "customizations": {
+    "vscode": {
+      "extensions": ["golang.Go"]
+    }
+  }
+}
