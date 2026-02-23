@@ -11,7 +11,7 @@ import (
 func main() {
 	setupFlags()
 	log.Println("rolling the RediGo")
-	server.RunSyncTCPServer()
+	server.RunAsyncTCPServer()
 }
 
 func setupFlags() {
