@@ -125,7 +125,9 @@ func Encode(value any, isSimple bool) []byte {
 		}
 
 		return []byte(fmt.Sprintf("$%d\r\n%s\r\n", len(v), v))
+	case int, int8, int16, int32, int64:
+		return []byte(fmt.Sprintf(":%d\r\n", v))
+	default:
+		return RESP_NIL
 	}
-
-	return []byte{}
 }
