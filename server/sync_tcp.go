@@ -1,23 +1,63 @@
 package server
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net"
 	"strconv"
 	"strings"
 
-	"github.com/AuraReaper/redigo/config"
-	"github.com/AuraReaper/redigo/core"
+	"github.com/dicedb/dice/config"
+	"github.com/dicedb/dice/core"
 )
 
+func toArrayString(ai []interface{}) ([]string, error) {
+	as := make([]string, len(ai))
+	for i := range ai {
+		as[i] = ai[i].(string)
+	}
+	return as, nil
+}
+
+func readCommands(c io.ReadWriter) (core.RedisCmds, error) {
+	// TODO: Max read in one shot is 512 bytes
+	// To allow input > 512 bytes, then repeated read until
+	// we get EOF or designated delimiter
+	var buf []byte = make([]byte, 512)
+	n, err := c.Read(buf[:])
+	if err != nil {
+		return nil, err
+	}
+
+	values, err := core.Decode(buf[:n])
+	if err != nil {
+		return nil, err
+	}
+
+	var cmds []*core.RedisCmd = make([]*core.RedisCmd, 0)
+	for _, value := range values {
+		tokens, err := toArrayString(value.([]interface{}))
+		if err != nil {
+			return nil, err
+		}
+		cmds = append(cmds, &core.RedisCmd{
+			Cmd:  strings.ToUpper(tokens[0]),
+			Args: tokens[1:],
+		})
+	}
+	return cmds, nil
+}
+
+func respond(cmds core.RedisCmds, c io.ReadWriter) {
+	core.EvalAndRespond(cmds, c)
+}
+
 func RunSyncTCPServer() {
-	log.Println("rolling a synchronous TCP server on", config.Host, config.Port)
+	log.Println("starting a synchronous TCP server on", config.Host, config.Port)
 
-	var conClients int = 0 // count of concurrent clients
+	var con_clients int = 0
 
-	// listening on the configures host:port
+	// listening to the configured host:port
 	lsnr, err := net.Listen("tcp", config.Host+":"+strconv.Itoa(config.Port))
 	if err != nil {
 		log.Println("err", err)
@@ -31,49 +71,20 @@ func RunSyncTCPServer() {
 			log.Println("err", err)
 		}
 
-		// increment the no of concurrent clients
-		conClients++
+		// increment the number of concurrent clients
+		con_clients += 1
 
 		for {
-			// over the socket, continously read the command and print it out
-			cmd, err := readCommand(c)
+			// over the socket, continuously read the command and print it out
+			cmds, err := readCommands(c)
 			if err != nil {
 				c.Close()
-				conClients--
+				con_clients -= 1
 				if err == io.EOF {
 					break
 				}
 			}
-			respond(cmd, c)
+			respond(cmds, c)
 		}
 	}
-}
-
-func readCommand(c io.ReadWriter) (*core.RedigoCmd, error) {
-	var buf []byte = make([]byte, 512)
-	n, err := c.Read(buf[:])
-	if err != nil {
-		return nil, err
-	}
-
-	tokens, err := core.DecodeArrayString(buf[:n])
-	if err != nil {
-		return nil, err
-	}
-
-	return &core.RedigoCmd{
-		Cmd:  strings.ToUpper(tokens[0]),
-		Args: tokens[1:],
-	}, nil
-}
-
-func respond(cmd *core.RedigoCmd, c io.ReadWriter) {
-	err := core.EvalAndRespond(cmd, c)
-	if err != nil {
-		respondError(err, c)
-	}
-}
-
-func respondError(err error, c io.ReadWriter) {
-	c.Write([]byte(fmt.Sprintf("-%s\r\n", err)))
 }
