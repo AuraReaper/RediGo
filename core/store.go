@@ -1,6 +1,10 @@
 package core
 
-import "time"
+import (
+	"time"
+
+	"github.com/AuraReaper/redigo/config"
+)
 
 var store map[string]*Obj
 
@@ -26,6 +30,9 @@ func NewObj(value any, durationMs int64) *Obj {
 }
 
 func Put(k string, obj *Obj) {
+	if len(store) >= config.KeysLimit {
+		evict()
+	}
 	store[k] = obj
 }
 
